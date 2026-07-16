@@ -655,21 +655,28 @@ git commit -m "feat: validate format, host->formats map, drop spotify"
 
 ---
 
-### Task 5: `server.mjs` — fetch-driven page (chips, spinner, blob save, dynamic filtering)
+### Task 5: `server.mjs` — fetch-driven page (amber terminal: flags, spinner, blob save, dynamic filtering)
 
 **Files:**
 - Modify: `server.mjs` (`PAGE` template — inline CSS + JS)
 - Manual verification (browser)
 
 **Interfaces:**
-- Consumes: `HOST_FORMATS` (Task 4) — serialized into the page as JSON for client-side chip filtering.
+- Consumes: `HOST_FORMATS` (Task 4) — serialized into the page as JSON for client-side flag filtering.
 - Produces: the served HTML at `GET /`.
 
-**Design skill:** invoke the `frontend-design` skill before finalizing the CSS. The markup/JS below is a working baseline; frontend-design drives the visual treatment (centered card, spacing, chip styling, spinner, light/dark, responsive) within the constraints (one inline `<style>`, no framework, no network requests).
+**Design direction — "amber terminal" (decided via frontend-design):** the page reads like a personal shell session for a CLI tool, not a web form. Derive every value below from these tokens; do not fall back to `system-ui` + pills.
 
-- [ ] **Step 1: Replace the `PAGE` constant with the chips + fetch UI**
+- **Palette:** `--bg #14131b` (warm ink, not pure black) · `--fg #e8e3d8` (paper) · `--muted #8f8a9e` · `--accent #ffb454` (amber-CRT) · `--danger #ff6b6b` · `--line #2c2937`. Light-mode variant via `prefers-color-scheme`.
+- **Type:** monospace everywhere (`ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace`). No webfont is loaded — mono is the personality and honors no-network/no-bloat.
+- **Signature:** the URL field is a shell prompt — amber `❯` + blinking caret; format options are **flags** (`--mp4 … --png`), not pills; the status line is shell-style output with a braille spinner (`⠋⠙⠹…`) + elapsed time, echoing yt-dlp.
+- **Quality floor:** responsive to mobile, visible keyboard focus, `prefers-reduced-motion` respected (no blink, static spinner glyph).
 
-Replace the entire `PAGE` template literal. Baseline (style block intentionally minimal — frontend-design refines it in Step 2). **Do not use backticks or `${}` inside the inline `<script>`** — this string is itself a template literal; only the `HOST_FORMATS` interpolation below is intentional. Use string concatenation in client JS.
+The code below already embodies this direction; Step 2 is a screenshot-critique pass, not a redesign.
+
+- [ ] **Step 1: Replace the `PAGE` constant with the amber-terminal UI**
+
+Replace the entire `PAGE` template literal. **Do not use backticks or `${}` inside the inline `<script>`** — this string is itself a template literal; only the `HOST_FORMATS` interpolation is intentional. Use string concatenation in client JS.
 
 ```js
 const PAGE = `<!doctype html>
@@ -679,49 +686,84 @@ const PAGE = `<!doctype html>
 <meta name="robots" content="noindex, nofollow">
 <title>dl</title>
 <style>
- :root{color-scheme:light dark}
+ :root{
+  --bg:#14131b; --surface:#1d1b26; --fg:#e8e3d8; --muted:#8f8a9e;
+  --accent:#ffb454; --danger:#ff6b6b; --line:#2c2937;
+  color-scheme:dark light;
+ }
+ @media (prefers-color-scheme:light){
+  :root{ --bg:#f6f3ea; --surface:#fffdf7; --fg:#221f1a; --muted:#6b6558;
+         --accent:#b4600a; --danger:#c0392b; --line:#e3ddcd; }
+ }
  *{box-sizing:border-box}
- body{font:16px system-ui,sans-serif;max-width:34rem;margin:4rem auto;padding:0 1rem}
- form{display:flex;flex-direction:column;gap:.75rem}
- .row{display:flex;gap:.5rem}
- input[type=url]{flex:1;padding:.6rem;font-size:1rem}
- button{padding:.6rem 1rem;font-size:1rem;cursor:pointer}
- .chips{display:flex;flex-wrap:wrap;gap:.5rem}
- .chip{position:relative}
- .chip[hidden]{display:none}
- .chip input{position:absolute;opacity:0;pointer-events:none}
- .chip span{display:inline-block;padding:.4rem .8rem;border:1px solid #8888;border-radius:999px;cursor:pointer;user-select:none}
- .chip input:checked+span{border-color:currentColor;font-weight:600}
- #status{min-height:1.5rem;color:#888}
- #status.err{color:#c33}
- .spin{display:inline-block;width:1em;height:1em;border:2px solid #8888;border-top-color:currentColor;border-radius:50%;animation:s .7s linear infinite;vertical-align:-.15em;margin-right:.4rem}
- @keyframes s{to{transform:rotate(360deg)}}
+ html,body{height:100%}
+ body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.5 ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  display:grid; place-items:center; padding:1.5rem;
+ }
+ main{width:100%; max-width:40rem}
+ .head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1.25rem}
+ .brand{font-size:1.9rem; font-weight:700; letter-spacing:.12em}
+ .brand b{color:var(--accent)}
+ .hint{color:var(--muted); font-size:.8rem; letter-spacing:.04em}
+ form{display:flex; flex-direction:column; gap:.9rem}
+ .prompt{display:flex; align-items:center; gap:.6rem; border-bottom:1px solid var(--line); padding:.4rem 0}
+ .prompt:focus-within{border-color:var(--accent)}
+ .caret{color:var(--accent); font-weight:700; animation:blink 1.1s step-end infinite}
+ @keyframes blink{50%{opacity:.2}}
+ #url{flex:1; min-width:0; background:none; border:0; outline:none; color:var(--fg);
+      font:inherit; caret-color:var(--accent); padding:.3rem 0}
+ #url::placeholder{color:var(--muted)}
+ #go{font:inherit; color:var(--accent); background:none; border:1px solid var(--accent);
+     border-radius:2px; padding:.35rem .9rem; cursor:pointer; transition:background .12s,color .12s}
+ #go:hover,#go:focus-visible{background:var(--accent); color:var(--bg); outline:none}
+ #go:disabled{opacity:.5; cursor:progress}
+ .flags{display:flex; flex-wrap:wrap; gap:.5rem}
+ .flag input{position:absolute; width:1px; height:1px; opacity:0; clip:rect(0 0 0 0)}
+ .flag span{display:inline-block; color:var(--muted); padding:.25rem .55rem;
+            border:1px solid transparent; border-radius:2px; cursor:pointer}
+ .flag span:hover{color:var(--fg)}
+ .flag input:checked+span{color:var(--accent); border-color:var(--accent)}
+ .flag input:focus-visible+span{outline:2px solid var(--accent); outline-offset:2px}
+ .flag[hidden]{display:none}
+ .status{min-height:1.4rem; color:var(--muted); font-size:.9rem; word-break:break-word}
+ .status.err{color:var(--danger)}
+ .status .t{color:var(--accent)}
+ .sites{margin-top:1.5rem; color:var(--muted); font-size:.78rem; letter-spacing:.06em}
+ @media (prefers-reduced-motion:reduce){ .caret{animation:none} }
+ @media (max-width:30rem){ #go{width:100%} }
 </style></head>
 <body>
-<h1>dl</h1>
-<form id="f">
- <div class="row">
-  <input id="url" name="url" type="url" placeholder="Paste a supported URL" required autofocus>
-  <button id="go">Download</button>
- </div>
- <div class="chips" id="chips">
-  <label class="chip" data-format="mp4"><input type="radio" name="format" value="mp4" checked><span>MP4</span></label>
-  <label class="chip" data-format="mp3"><input type="radio" name="format" value="mp3"><span>MP3</span></label>
-  <label class="chip" data-format="wav"><input type="radio" name="format" value="wav"><span>WAV</span></label>
-  <label class="chip" data-format="jpg"><input type="radio" name="format" value="jpg"><span>JPG</span></label>
-  <label class="chip" data-format="png"><input type="radio" name="format" value="png"><span>PNG</span></label>
- </div>
- <div id="status"></div>
-</form>
-<p style="color:#888">YouTube · Instagram · TikTok · X</p>
+<main>
+ <div class="head"><span class="brand">d<b>l</b></span><span class="hint">paste · pick · &#9166;</span></div>
+ <form id="f">
+  <div class="prompt">
+   <span class="caret">&#10095;</span>
+   <input id="url" name="url" type="url" placeholder="paste a link" required autofocus autocomplete="off" spellcheck="false">
+   <button id="go">get</button>
+  </div>
+  <div class="flags" id="chips">
+   <label class="flag" data-format="mp4"><input type="radio" name="format" value="mp4" checked><span>--mp4</span></label>
+   <label class="flag" data-format="mp3"><input type="radio" name="format" value="mp3"><span>--mp3</span></label>
+   <label class="flag" data-format="wav"><input type="radio" name="format" value="wav"><span>--wav</span></label>
+   <label class="flag" data-format="jpg"><input type="radio" name="format" value="jpg"><span>--jpg</span></label>
+   <label class="flag" data-format="png"><input type="radio" name="format" value="png"><span>--png</span></label>
+  </div>
+  <div id="status" class="status" aria-live="polite"></div>
+ </form>
+ <div class="sites">youtube · instagram · tiktok · x</div>
+</main>
 <script>
 const HOST_FORMATS = ${JSON.stringify(HOST_FORMATS)};
 const ALL = ['mp4','mp3','wav','jpg','png'];
+const FRAMES = ['\\u280b','\\u2819','\\u2839','\\u2838','\\u283c','\\u2834','\\u2826','\\u2827','\\u2807','\\u280f'];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const f = document.getElementById('f');
 const url = document.getElementById('url');
 const go = document.getElementById('go');
-const chips = Array.from(document.querySelectorAll('.chip'));
-const status = document.getElementById('status');
+const chips = Array.from(document.querySelectorAll('.flag'));
+const statusEl = document.getElementById('status');
 
 function hostOf(v){ try { return new URL(v).hostname.replace(/^www\\./,''); } catch { return ''; } }
 function allowedFor(h){
@@ -747,9 +789,13 @@ document.addEventListener('keydown', function(e){
   const i = ['1','2','3','4','5'].indexOf(e.key);
   if(i < 0) return;
   const c = chips[i];
-  if(c && !c.hidden){ c.querySelector('input').checked = true; }
+  if(c && !c.hidden) c.querySelector('input').checked = true;
 });
 
+function elapsed(ms){
+  const s = Math.floor(ms/1000);
+  return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+}
 function fileName(cd){
   const m = /filename="?([^"]+)"?/.exec(cd || '');
   return m ? m[1] : 'download';
@@ -760,32 +806,31 @@ function save(blob, name){
   a.href = u; a.download = name; document.body.appendChild(a); a.click();
   a.remove(); URL.revokeObjectURL(u);
 }
-function setStatus(html, isErr){ status.className = isErr ? 'err' : ''; status.innerHTML = html; }
+function set(html, cls){ statusEl.className = 'status' + (cls ? ' ' + cls : ''); statusEl.innerHTML = html; }
 
-let started = 0, timer = 0;
+let started = 0, timer = 0, frame = 0;
 function tick(){
-  const s = Math.floor((performance.now() - started) / 1000);
-  const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2,'0');
-  setStatus('<span class="spin"></span>Fetching&hellip; ' + mm + ':' + ss);
+  const g = reduce ? '\\u00b7' : FRAMES[frame++ % FRAMES.length];
+  set(g + ' fetching&hellip; <span class="t">' + elapsed(performance.now() - started) + '</span>');
 }
 
 f.addEventListener('submit', async function(e){
   e.preventDefault();
   const fmt = new FormData(f).get('format');
   go.disabled = true;
-  started = performance.now();
-  tick();
-  timer = setInterval(tick, 250);
+  started = performance.now(); frame = 0; tick();
+  timer = setInterval(tick, reduce ? 1000 : 90);
   try{
     const res = await fetch('/', { method:'POST', body:new URLSearchParams({ url: url.value, format: fmt }) });
     clearInterval(timer);
-    if(!res.ok){ setStatus((await res.text()).trim() || 'Download failed', true); return; }
+    if(!res.ok){ set('\\u2717 ' + ((await res.text()).trim() || 'download failed'), 'err'); return; }
     const blob = await res.blob();
-    save(blob, fileName(res.headers.get('Content-Disposition')));
-    setStatus('Done.');
+    const name = fileName(res.headers.get('Content-Disposition'));
+    save(blob, name);
+    set('\\u2713 saved <span class="t">' + name + '</span>');
   }catch(err){
     clearInterval(timer);
-    setStatus('Network error', true);
+    set('\\u2717 network error', 'err');
   }finally{
     go.disabled = false;
   }
@@ -794,9 +839,9 @@ f.addEventListener('submit', async function(e){
 </body></html>`
 ```
 
-- [ ] **Step 2: Run frontend-design on the page**
+- [ ] **Step 2: Screenshot-critique pass**
 
-Invoke the `frontend-design` skill and apply its guidance to the inline `<style>` and markup only — keep the JS behavior, the single-`<style>` rule, no framework, no external requests, and the noindex constraints. Keep it responsive and light/dark aware.
+The direction is already decided (amber terminal). Load the page, screenshot dark + light + mobile widths, and critique against the direction: is the amber used structurally (caret / active flag / activity), not sprinkled? Is spacing on the prompt line and flag row balanced in mono? Adjust only spacing, sizing, and contrast within the existing tokens — do not swap the palette, add a framework, load a font, or make any network request. Keep the single `<style>` and the noindex constraints intact.
 
 - [ ] **Step 3: Add a server-side page smoke test**
 
@@ -823,11 +868,13 @@ Expected: PASS.
 Run: `AUTH_PASS=secret npm run setup >/dev/null 2>&1; AUTH_PASS=secret PORT=8099 npm start` (in one terminal), then open `http://localhost:8099` with user `admin` / pass `secret`.
 
 Verify:
-- Paste a YouTube URL → only MP4/MP3/WAV chips show; JPG/PNG hidden.
-- Paste an Instagram URL → all five chips show.
-- Submit with MP4 → spinner + timer runs, then the file saves; status shows "Done."
-- Submit a bad URL → inline error text, form re-enabled.
-- Resize to a narrow width → layout stays usable (chips wrap, no horizontal scroll).
+- Paste a YouTube URL → only `--mp4`/`--mp3`/`--wav` flags show; `--jpg`/`--png` hidden.
+- Paste an Instagram URL → all five flags show.
+- Submit with `--mp4` → braille spinner + elapsed timer runs, then the file saves; status shows `✓ saved <name>`.
+- Submit a bad URL → inline `✗ …` error, form re-enabled.
+- Keyboard: Tab reaches flags + button with a visible amber focus ring; number keys 1–5 select visible flags.
+- Resize to a narrow width → flags wrap, `get` goes full-width, no horizontal scroll.
+- Toggle OS dark/light and reduced-motion → palette flips; caret stops blinking and the spinner shows a static glyph under reduced-motion.
 
 - [ ] **Step 5: Commit**
 
