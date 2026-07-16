@@ -27,3 +27,22 @@ test('formatsForHost maps hosts to offered formats', () => {
   assert.deepEqual(formatsForHost('x.com'), ['mp4', 'mp3', 'wav', 'jpg', 'png'])
   assert.equal(formatsForHost('unknown.com'), null)
 })
+
+test('formatsForHost enforces per-site format restrictions', () => {
+  assert.equal(formatsForHost('instagram.com').includes('png'), true)
+  assert.equal(formatsForHost('youtube.com').includes('png'), false)
+})
+
+test('rejects a format the host does not offer', async () => {
+  const { server } = await import('./server.mjs')
+  await new Promise((r) => server.listen(0, r))
+  const { port } = server.address()
+  const auth = 'Basic ' + Buffer.from('admin:test-secret').toString('base64')
+  const res = await fetch('http://127.0.0.1:' + port + '/', {
+    method: 'POST',
+    headers: { authorization: auth },
+    body: new URLSearchParams({ url: 'https://youtube.com/watch?v=x', format: 'png' }),
+  })
+  assert.equal(res.status, 400)
+  await new Promise((r) => server.close(r))
+})

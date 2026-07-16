@@ -46,7 +46,7 @@ const PAGE = `<!doctype html>
 <p>YouTube · Instagram · TikTok · X · Spotify</p>
 </body></html>`
 
-const server = createServer((req, res) => {
+export const server = createServer((req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow')
 
   if (req.url === '/robots.txt') {
@@ -97,6 +97,11 @@ async function handleDownload(res, body) {
   if (!hostAllowed(url)) {
     res.writeHead(400, { 'Content-Type': 'text/plain' })
     return res.end('Unsupported or invalid URL\n')
+  }
+  const host = normHost(url)
+  if (!formatsForHost(host).includes(format)) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' })
+    return res.end('Unsupported format for this site\n')
   }
 
   let job
