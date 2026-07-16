@@ -29,7 +29,10 @@ export async function download(url) {
       '--no-playlist',
       '--no-progress',
       '--restrict-filenames',
+      // YouTube extraction now requires a JS runtime; reuse this Node.
+      '--js-runtimes', `node:${process.execPath}`,
       '-f', 'bv*+ba/b',
+      '-S', 'ext:mp4:m4a',
       '--merge-output-format', 'mp4',
       '-o', join(dir, '%(title).150s.%(ext)s'),
       url,
