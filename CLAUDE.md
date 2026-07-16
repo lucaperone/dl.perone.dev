@@ -22,6 +22,19 @@ media file back. Runs on my Infomaniak server (Node 24/25).
   single shared secret (HTTP Basic or a signed cookie) from an env var. An open
   yt-dlp proxy is an abuse magnet — never ship it unauthenticated.
 
+## Backlog (considered, not built)
+
+Ideas parked for later. Building any of these revises the scope list above;
+keep each one KISS.
+
+- **Spotify support** — yt-dlp can't fetch Spotify audio (DRM). Needs an
+  external tool (e.g. `spotdl`, which resolves tracks to YouTube). Would be the
+  first real runtime dep — revisit the zero-dep stance when it lands.
+- **Output format toggle** — audio-only vs video on the form (audio via
+  `yt-dlp -x`, e.g. m4a/mp3). Promotes "format pickers" out of the YAGNI list.
+- **Nicer UI** — still one page, still inline, just less bare.
+- **Responsiveness** — mobile-friendly form/layout.
+
 ## Philosophy
 
 **KISS and YAGNI, strictly.** Prefer the boring, built-in solution. Every
