@@ -53,7 +53,7 @@ const PAGE = `<!doctype html>
  .brand b{color:var(--accent)}
  .hint{color:var(--muted); font-size:.8rem; letter-spacing:.04em}
  form{display:flex; flex-direction:column; gap:.9rem}
- .prompt{display:flex; align-items:center; gap:.6rem; border-bottom:1px solid var(--line); padding:.4rem 0}
+ .prompt{display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; border-bottom:1px solid var(--line); padding:.4rem 0}
  .prompt:focus-within{border-color:var(--accent)}
  .caret{color:var(--accent); font-weight:700; animation:blink 1.1s step-end infinite}
  @keyframes blink{50%{opacity:.2}}
@@ -110,14 +110,16 @@ const go = document.getElementById('go');
 const chips = Array.from(document.querySelectorAll('.flag'));
 const statusEl = document.getElementById('status');
 
-function hostOf(v){ try { return new URL(v).hostname.replace(/^www\\./,''); } catch { return ''; } }
-function allowedFor(h){
-  if(!h) return ALL;
+function allowedFor(v){
+  let u; try { u = new URL(v); } catch { return ALL; }
+  const h = u.hostname.replace(/^www\\./,'');
+  const insta = h === 'instagram.com' || h.endsWith('.instagram.com');
+  if(insta && (u.pathname.startsWith('/reel/') || u.pathname.startsWith('/reels/'))) return ['mp4','mp3','wav'];
   for(const k in HOST_FORMATS){ if(h===k || h.endsWith('.'+k)) return HOST_FORMATS[k]; }
   return ALL;
 }
 function refresh(){
-  const allowed = allowedFor(hostOf(url.value));
+  const allowed = allowedFor(url.value);
   let selVisible = false;
   for(const c of chips){
     const ok = allowed.includes(c.dataset.format);
@@ -236,8 +238,7 @@ async function handleDownload(res, body) {
     res.writeHead(400, { 'Content-Type': 'text/plain' })
     return res.end('Unsupported or invalid URL\n')
   }
-  const host = normHost(url)
-  if (!formatsForHost(host).includes(format)) {
+  if (!formatsForUrl(url).includes(format)) {
     res.writeHead(400, { 'Content-Type': 'text/plain' })
     return res.end('Unsupported format for this site\n')
   }
@@ -303,4 +304,23 @@ export function formatsForHost(host) {
     if (h === key || h.endsWith('.' + key)) return HOST_FORMATS[key]
   }
   return null
+}
+
+// Like formatsForHost, but path-aware: an Instagram reel is video-only, so it
+// drops the photo formats a general /p/ post would offer.
+export function formatsForUrl(raw) {
+  const base = formatsForHost(normHost(raw))
+  if (!base) return null
+  let u
+  try {
+    u = new URL(raw)
+  } catch {
+    return base
+  }
+  const h = normHost(raw)
+  const insta = h === 'instagram.com' || h.endsWith('.instagram.com')
+  if (insta && (u.pathname.startsWith('/reel/') || u.pathname.startsWith('/reels/'))) {
+    return base.filter((fmt) => fmt !== 'jpg' && fmt !== 'png')
+  }
+  return base
 }

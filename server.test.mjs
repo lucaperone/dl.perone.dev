@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 process.env.AUTH_PASS = 'test-secret'
-const { hostAllowed, isValidFormat, formatsForHost } = await import('./server.mjs')
+const { hostAllowed, isValidFormat, formatsForHost, formatsForUrl } = await import('./server.mjs')
 
 test('spotify is no longer allowed', () => {
   assert.equal(hostAllowed('https://open.spotify.com/track/abc'), false)
@@ -79,5 +79,27 @@ test('unauthenticated request is rejected and still sends noindex header', async
   const res = await fetch('http://127.0.0.1:' + port + '/')
   assert.equal(res.status, 401)
   assert.match(res.headers.get('x-robots-tag') || '', /noindex/)
+  await new Promise((r) => server.close(r))
+})
+
+test('instagram reels are video-only; posts keep image formats', () => {
+  assert.deepEqual(formatsForUrl('https://www.instagram.com/reel/abc/'), ['mp4', 'mp3', 'wav'])
+  assert.deepEqual(formatsForUrl('https://instagram.com/reels/abc'), ['mp4', 'mp3', 'wav'])
+  assert.deepEqual(formatsForUrl('https://instagram.com/p/abc/'), ['mp4', 'mp3', 'wav', 'jpg', 'png'])
+  assert.deepEqual(formatsForUrl('https://youtube.com/watch?v=x'), ['mp4', 'mp3', 'wav'])
+  assert.equal(formatsForUrl('https://evil.com/x'), null)
+})
+
+test('rejects an image format on an instagram reel', async () => {
+  const { server } = await import('./server.mjs')
+  await new Promise((r) => server.listen(0, r))
+  const { port } = server.address()
+  const auth = 'Basic ' + Buffer.from('admin:test-secret').toString('base64')
+  const res = await fetch('http://127.0.0.1:' + port + '/', {
+    method: 'POST',
+    headers: { authorization: auth },
+    body: new URLSearchParams({ url: 'https://www.instagram.com/reel/abc/', format: 'png' }),
+  })
+  assert.equal(res.status, 400)
   await new Promise((r) => server.close(r))
 })
