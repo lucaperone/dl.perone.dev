@@ -68,11 +68,22 @@ npm start                # node --env-file-if-exists=.env server.mjs
 - Secrets and config come from env vars, never committed. See `.env.example`
   once it exists.
 
-## Deploy (target)
+## Deploy (Infomaniak Node.js hosting)
 
-- Runs as a long-lived Node process on Infomaniak behind their reverse proxy
-  (TLS terminated upstream). systemd unit or Infomaniak's Node app manager.
-- Config via env: shared secret, listen port, temp dir, host allowlist.
+Managed Node app (not a VPS). Configured in the Manager dashboard; the app is a
+long-lived process behind Infomaniak's reverse proxy (TLS terminated upstream).
+
+- **Execution folder:** repo root (has `package.json`).
+- **Build command:** `npm run setup` — fetches yt-dlp + ffmpeg into `./vendor/`
+  with boosted build-tier resources. Runs on every deploy.
+- **Start command:** `npm start` (`node --env-file-if-exists=.env server.mjs`).
+- **Port:** the Manager assigns `PORT`; the app reads `process.env.PORT`.
+- **Node version:** 24 LTS, selected in the Manager.
+- **Secret:** custom env vars aren't guaranteed in the Manager, so put
+  `AUTH_USER`/`AUTH_PASS` in a server-side `.env` (SFTP/SSH, gitignored). A
+  `git pull` deploy preserves the untracked `.env`.
+- The throttled SSH shell is for admin only; the managed app tier is where the
+  process actually runs (yt-dlp/ffmpeg included).
 
 ## Repo
 
