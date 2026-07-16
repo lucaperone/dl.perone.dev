@@ -8,15 +8,16 @@ media file back. Runs on my Infomaniak server (Node 24/25).
 - **One URL in → one media file out.** That is the whole product.
 - Private tool for my own use. Not a public service.
 - Explicitly **out of scope** (YAGNI): playlists, batch/queue, accounts, a
-  database, download history, format pickers, transcoding options, an API,
-  mobile app, real-time progress bars. Add none of this without a concrete need.
+  database, download history, transcoding options (beyond the fixed
+  audio/video/image formats), an API, mobile app, real-time progress bars. Add
+  none of this without a concrete need.
 
 ## Non-negotiable constraints
 
 - **No index, no robots.** `robots.txt` disallows everything; every response
   sends `X-Robots-Tag: noindex, nofollow`. No sitemap, no meta previews.
-- **No bloated UI.** One HTML page, one form (URL + submit). Inline CSS, no
-  framework, no build step for the frontend.
+- **No bloated UI.** One HTML page, one form (URL + format flags). Inline CSS,
+  no framework, no build step for the frontend.
 - **No ads, no trackers, no third-party requests** from the page.
 - **Auth required.** The box is public, so the endpoint is gated behind a
   single shared secret (HTTP Basic or a signed cookie) from an env var. An open

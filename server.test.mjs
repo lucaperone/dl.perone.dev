@@ -71,3 +71,13 @@ test('served page interpolates HOST_FORMATS and has no leftover template code', 
   assert.ok(!body.includes('JSON.stringify'), 'interpolation ran, no raw template left')
   await new Promise((r) => server.close(r))
 })
+
+test('unauthenticated request is rejected and still sends noindex header', async () => {
+  const { server } = await import('./server.mjs')
+  await new Promise((r) => server.listen(0, r))
+  const { port } = server.address()
+  const res = await fetch('http://127.0.0.1:' + port + '/')
+  assert.equal(res.status, 401)
+  assert.match(res.headers.get('x-robots-tag') || '', /noindex/)
+  await new Promise((r) => server.close(r))
+})

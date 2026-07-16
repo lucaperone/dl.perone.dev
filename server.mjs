@@ -152,6 +152,7 @@ function save(blob, name){
   a.remove(); URL.revokeObjectURL(u);
 }
 function set(html, cls){ statusEl.className = 'status' + (cls ? ' ' + cls : ''); statusEl.innerHTML = html; }
+function esc(s){ return s.replace(/[&<>]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c] }) }
 
 let started = 0, timer = 0, frame = 0;
 function tick(){
@@ -168,11 +169,11 @@ f.addEventListener('submit', async function(e){
   try{
     const res = await fetch('/', { method:'POST', body:new URLSearchParams({ url: url.value, format: fmt }) });
     clearInterval(timer);
-    if(!res.ok){ set('\\u2717 ' + ((await res.text()).trim() || 'download failed'), 'err'); return; }
+    if(!res.ok){ set('\\u2717 ' + esc((await res.text()).trim() || 'download failed'), 'err'); return; }
     const blob = await res.blob();
     const name = fileName(res.headers.get('Content-Disposition'));
     save(blob, name);
-    set('\\u2713 saved <span class="t">' + name + '</span>');
+    set('\\u2713 saved <span class="t">' + esc(name) + '</span>');
   }catch(err){
     clearInterval(timer);
     set('\\u2717 network error', 'err');
@@ -259,6 +260,10 @@ async function handleDownload(res, body) {
   stream.pipe(res)
   const cleanup = () => rm(job.dir, { recursive: true, force: true }).catch(() => {})
   stream.on('close', cleanup)
+  stream.on('error', () => {
+    if (!res.destroyed) res.destroy()
+    cleanup()
+  })
   res.on('close', cleanup)
 }
 
