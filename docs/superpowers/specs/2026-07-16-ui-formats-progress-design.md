@@ -105,6 +105,8 @@ Speed is the whole point. No dropdown.
 - **Dynamic offering (client-side host regex):** as the URL changes, detect its
   host and show only the chips that host supports. This is a **UX filter only**;
   the server allowlist + format validation remain the security source of truth.
+  The backend also enforces that the requested format is supported for the
+  target host.
 
   | Host | Chips |
   |------|-------|
