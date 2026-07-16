@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { zipBuffers } from './zip.mjs'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const vendor = join(root, 'vendor')
@@ -12,6 +13,10 @@ const hasVendor = existsSync(vendor)
 const YTDLP =
   process.env.YTDLP_PATH ||
   (existsSync(join(vendor, 'yt-dlp')) ? join(vendor, 'yt-dlp') : 'yt-dlp')
+
+const FFMPEG =
+  process.env.FFMPEG_PATH ||
+  (existsSync(join(vendor, 'ffmpeg')) ? join(vendor, 'ffmpeg') : 'ffmpeg')
 
 // Prepend vendor/ so a vendored ffmpeg is found for muxing.
 const childEnv = hasVendor
@@ -61,28 +66,51 @@ export function zipName(names) {
 
 // Download `url` into a fresh temp dir. Returns { dir, file }; the caller
 // streams `file` to the client, then removes `dir`.
-export async function download(url) {
+export async function download(url, format = 'mp4') {
   const dir = await mkdtemp(join(process.env.TMPDIR || tmpdir(), 'dl-'))
   try {
-    await run(YTDLP, [
-      '--no-playlist',
-      '--no-progress',
-      '--restrict-filenames',
-      // YouTube extraction now requires a JS runtime; reuse this Node.
-      '--js-runtimes', `node:${process.execPath}`,
-      '-f', 'bv*+ba/b',
-      '-S', 'ext:mp4:m4a',
-      '--merge-output-format', 'mp4',
-      '-o', join(dir, '%(title).150s.%(ext)s'),
+    await run(YTDLP, buildArgs({
+      format,
       url,
-    ])
-    const files = await readdir(dir)
+      nodePath: process.execPath,
+      outTemplate: join(dir, '%(title).150s.%(ext)s'),
+    }))
+
+    let files = await readdir(dir)
     if (files.length === 0) throw new Error('yt-dlp produced no file')
-    return { dir, file: join(dir, files[0]) }
+
+    if (format === 'jpg' || format === 'png') {
+      files = await convertImages(dir, files, format)
+    }
+
+    if (files.length === 1) return { dir, file: join(dir, files[0]) }
+
+    const entries = await Promise.all(
+      files.map(async (name) => ({ name, data: await readFile(join(dir, name)) })),
+    )
+    const zipPath = join(dir, zipName(files))
+    await writeFile(zipPath, zipBuffers(entries))
+    return { dir, file: zipPath }
   } catch (err) {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
     throw err
   }
+}
+
+async function convertImages(dir, files, format) {
+  const out = []
+  for (const name of files) {
+    const ext = extname(name)
+    if (!needsConvert(ext, format)) {
+      out.push(name)
+      continue
+    }
+    const dst = `${basename(name, ext)}.${format}`
+    await run(FFMPEG, ['-y', '-i', join(dir, name), join(dir, dst)])
+    await rm(join(dir, name)).catch(() => {})
+    out.push(dst)
+  }
+  return out
 }
 
 function run(cmd, args) {
