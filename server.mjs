@@ -3,25 +3,26 @@ import { timingSafeEqual } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { basename } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { download } from './download.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const USER = process.env.AUTH_USER || 'admin'
 const PASS = process.env.AUTH_PASS
-if (!PASS) {
-  console.error('AUTH_PASS env var is required')
-  process.exit(1)
-}
 
-const ALLOWED_HOSTS = [
-  'youtube.com',
-  'youtu.be',
-  'instagram.com',
-  'tiktok.com',
-  'x.com',
-  'twitter.com',
-  'open.spotify.com',
-]
+const HOST_FORMATS = {
+  'youtube.com': ['mp4', 'mp3', 'wav'],
+  'youtu.be': ['mp4', 'mp3', 'wav'],
+  'tiktok.com': ['mp4', 'mp3', 'wav'],
+  'instagram.com': ['mp4', 'mp3', 'wav', 'jpg', 'png'],
+  'x.com': ['mp4', 'mp3', 'wav', 'jpg', 'png'],
+  'twitter.com': ['mp4', 'mp3', 'wav', 'jpg', 'png'],
+}
+const ALLOWED_HOSTS = Object.keys(HOST_FORMATS)
+const FORMATS = ['mp4', 'mp3', 'wav', 'jpg', 'png']
+
+export { HOST_FORMATS, FORMATS }
+export const isValidFormat = (f) => FORMATS.includes(f)
 
 const PAGE = `<!doctype html>
 <html lang="en"><head>
@@ -76,10 +77,23 @@ const server = createServer((req, res) => {
   res.writeHead(404).end()
 })
 
-server.listen(PORT, () => console.log(`dl listening on :${PORT}`))
+const isMain = import.meta.url === pathToFileURL(process.argv[1]).href
+if (isMain) {
+  if (!PASS) {
+    console.error('AUTH_PASS env var is required')
+    process.exit(1)
+  }
+  server.listen(PORT, () => console.log(`dl listening on :${PORT}`))
+}
 
 async function handleDownload(res, body) {
-  const url = new URLSearchParams(body).get('url') || ''
+  const params = new URLSearchParams(body)
+  const url = params.get('url') || ''
+  const format = params.get('format') || 'mp4'
+  if (!isValidFormat(format)) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' })
+    return res.end('Unsupported format\n')
+  }
   if (!hostAllowed(url)) {
     res.writeHead(400, { 'Content-Type': 'text/plain' })
     return res.end('Unsupported or invalid URL\n')
@@ -87,7 +101,7 @@ async function handleDownload(res, body) {
 
   let job
   try {
-    job = await download(url)
+    job = await download(url, format)
   } catch (err) {
     console.error(err.message)
     res.writeHead(502, { 'Content-Type': 'text/plain' })
@@ -119,14 +133,27 @@ function safeEq(a, b) {
   return ab.length === bb.length && timingSafeEqual(ab, bb)
 }
 
-function hostAllowed(raw) {
+export function normHost(raw) {
   let u
   try {
     u = new URL(raw)
   } catch {
-    return false
+    return null
   }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
-  const host = u.hostname.replace(/^www\./, '')
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+  return u.hostname.replace(/^www\./, '')
+}
+
+export function hostAllowed(raw) {
+  const host = normHost(raw)
+  if (!host) return false
   return ALLOWED_HOSTS.some((h) => host === h || host.endsWith('.' + h))
+}
+
+export function formatsForHost(host) {
+  const h = (host || '').replace(/^www\./, '')
+  for (const key of ALLOWED_HOSTS) {
+    if (h === key || h.endsWith('.' + key)) return HOST_FORMATS[key]
+  }
+  return null
 }
