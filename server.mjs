@@ -249,7 +249,7 @@ async function handleDownload(res, body) {
   } catch (err) {
     console.error(err.message)
     res.writeHead(502, { 'Content-Type': 'text/plain' })
-    return res.end('Download failed\n')
+    return res.end(`${err.message}\n`)
   }
 
   const name = basename(job.file).replace(/"/g, '')
