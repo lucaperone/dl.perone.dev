@@ -52,6 +52,18 @@ export function needsConvert(srcExt, format) {
   return !ok.includes(ext)
 }
 
+// yt-dlp leaves one file per download, except an image carousel (many stills)
+// and a failed merge (separate video + audio, when ffmpeg is missing).
+export function pickResult(files, format) {
+  if (files.length === 0) throw new Error('yt-dlp produced no file')
+  if (files.length === 1) return { zip: false }
+  if (format === 'jpg' || format === 'png') return { zip: true }
+  throw new Error(
+    `yt-dlp left ${files.length} unmerged files (${files.join(', ')}); ` +
+      'ffmpeg is missing or failed',
+  )
+}
+
 export function zipName(names) {
   const bases = names.map((n) => n.replace(/\.[^.]+$/, ''))
   let prefix = bases[0] ?? ''
@@ -77,13 +89,11 @@ export async function download(url, format = 'mp4') {
     }))
 
     let files = await readdir(dir)
-    if (files.length === 0) throw new Error('yt-dlp produced no file')
-
     if (format === 'jpg' || format === 'png') {
       files = await convertImages(dir, files, format)
     }
 
-    if (files.length === 1) return { dir, file: join(dir, files[0]) }
+    if (!pickResult(files, format).zip) return { dir, file: join(dir, files[0]) }
 
     const entries = await Promise.all(
       files.map(async (name) => ({ name, data: await readFile(join(dir, name)) })),

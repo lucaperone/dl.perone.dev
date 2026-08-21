@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildArgs, needsConvert, zipName } from './download.mjs'
+import { buildArgs, needsConvert, pickResult, zipName } from './download.mjs'
 
 const base = {
   url: 'https://example.com/v',
@@ -59,4 +59,28 @@ test('zipName: common prefix, trimmed', () => {
   assert.equal(zipName(['My_Post_01.jpg', 'My_Post_02.jpg']), 'My_Post.zip')
   assert.equal(zipName(['1.jpg', '2.jpg']), 'download.zip')
   assert.equal(zipName([]), 'download.zip')
+})
+
+test('pickResult: single file is returned as-is', () => {
+  assert.deepEqual(pickResult(['v.mp4'], 'mp4'), { zip: false })
+  assert.deepEqual(pickResult(['a.jpg'], 'jpg'), { zip: false })
+})
+
+test('pickResult: multiple images zip as a carousel', () => {
+  assert.deepEqual(pickResult(['a.jpg', 'b.jpg'], 'jpg'), { zip: true })
+  assert.deepEqual(pickResult(['a.png', 'b.png'], 'png'), { zip: true })
+})
+
+test('pickResult: unmerged media is an error, not a zip', () => {
+  for (const format of ['mp4', 'mp3', 'wav']) {
+    assert.throws(
+      () => pickResult(['v.f401.mp4', 'v.f251.webm'], format),
+      /ffmpeg/,
+      format,
+    )
+  }
+})
+
+test('pickResult: no files at all is an error', () => {
+  assert.throws(() => pickResult([], 'mp4'), /no file/)
 })
