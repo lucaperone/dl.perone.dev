@@ -30,6 +30,7 @@ const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>dl</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2314131b'/><text x='16' y='23' text-anchor='middle' fill='%23e8e3d8' font-family='ui-monospace,SFMono-Regular,Menlo,monospace' font-size='20' font-weight='700'>d<tspan fill='%23ffb454'>l</tspan></text></svg>">
 <style>
  :root{
   --bg:#14131b; --surface:#1d1b26; --fg:#e8e3d8; --muted:#8f8a9e;
